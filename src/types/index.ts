@@ -18,13 +18,16 @@ export interface GenreInfo {
 
 export type AdaptationStatus = 'scripting' | 'storyboarding' | 'in-production' | 'released';
 
+export type SubmissionPipelineStep = 1 | 2 | 3 | 4 | 5; 
+// 1: Submitted, 2: Under Editorial Review, 3: Approved & Live, 4: Selected for Animation, 5: Released on Reels/YT
+
 export interface Story {
   id: string;
   title: string;
   hook: string;
   content: string;
   authorName: string;
-  authorHandle: string;
+  authorHandle: string; // e.g. @auranebula
   authorAvatar: string;
   genre: GenreId;
   coverImage: string;
@@ -48,6 +51,13 @@ export interface Story {
   status: 'pending' | 'approved' | 'rejected' | 'featured';
   featuredCollection?: string;
   challengeId?: string;
+  
+  // Real-time tracking & editorial analytics
+  pipelineStep: SubmissionPipelineStep;
+  editorialReviewNotes?: string;
+  submittedAt?: string;
+  approvedAt?: string;
+  estimatedReviewHours?: number;
 }
 
 export interface Challenge {
@@ -78,10 +88,11 @@ export interface Comment {
 export interface UserProfile {
   id: string;
   name: string;
-  handle: string;
+  handle: string; // e.g. @username
   bio: string;
   avatar: string;
-  instagramHandle?: string;
+  instagramHandle: string;
+  isOwnAccount?: boolean;
   badges: string[];
   savedStoryIds: string[];
   submittedStoryIds: string[];
@@ -94,4 +105,4 @@ export interface UserProfile {
 }
 
 export type ActiveTab = 'home' | 'explore' | 'create' | 'stash' | 'profile';
-export type ViewMode = ActiveTab | 'reader' | 'challenge' | 'screen' | 'admin';
+export type ViewMode = ActiveTab | 'reader' | 'challenge' | 'screen' | 'admin' | 'creator-profile';

@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { Film, Play, Pause, Volume2, VolumeX, ArrowRight, Sparkles, ExternalLink, Zap } from 'lucide-react';
 
 export const AdaptedShowcase: React.FC = () => {
-  const { stories, navigateTo } = useApp();
+  const { stories, navigateTo, openCreatorProfile } = useApp();
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -71,7 +71,7 @@ export const AdaptedShowcase: React.FC = () => {
   if (!activeAdapted) return null;
 
   return (
-    <section className="px-4 xs:px-6 py-10 max-w-6xl mx-auto">
+    <section className="px-4 xs:px-6 py-10 max-w-6xl mx-auto w-full">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-6">
         <div>
@@ -98,7 +98,7 @@ export const AdaptedShowcase: React.FC = () => {
 
       {/* Featured Video Spotlight Card */}
       <div className="rounded-3xl bg-surface border border-surface-border overflow-hidden grid grid-cols-1 lg:grid-cols-12 shadow-card-elevated">
-        {/* Video / Visual Column */}
+        {/* Video Column */}
         <div className="relative lg:col-span-7 bg-black min-h-[260px] sm:min-h-[360px] flex items-center justify-center overflow-hidden group">
           {isPlaying ? (
             <div className="relative w-full h-full min-h-[280px]">
@@ -162,8 +162,11 @@ export const AdaptedShowcase: React.FC = () => {
         {/* Story Info Column */}
         <div className="lg:col-span-5 p-6 sm:p-8 flex flex-col justify-between bg-surface-elevated">
           <div>
-            {/* Author Credit */}
-            <div className="flex items-center gap-2.5 mb-4">
+            {/* Author Credit — Clicking opens THAT author's creator profile! */}
+            <div 
+              onClick={() => openCreatorProfile(activeAdapted.authorHandle)}
+              className="flex items-center gap-2.5 mb-4 cursor-pointer hover:opacity-80 transition-opacity"
+            >
               <img
                 src={activeAdapted.authorAvatar}
                 alt={activeAdapted.authorName}
@@ -171,7 +174,9 @@ export const AdaptedShowcase: React.FC = () => {
               />
               <div className="min-w-0">
                 <p className="text-xs font-mono text-primary-muted">Original Story By</p>
-                <p className="text-sm font-bold text-primary truncate">{activeAdapted.authorName} <span className="text-primary-faint text-xs font-mono">{activeAdapted.authorHandle}</span></p>
+                <p className="text-sm font-bold text-primary truncate hover:text-accent-lime transition-colors">
+                  {activeAdapted.authorName} <span className="text-accent-pink text-xs font-mono">({activeAdapted.authorHandle})</span>
+                </p>
               </div>
             </div>
 

@@ -10,8 +10,7 @@ interface StoryCardProps {
 }
 
 export const StoryCard: React.FC<StoryCardProps> = ({ story, layout = 'standard' }) => {
-  const { navigateTo, toggleSaveStory, reactToStory, savedStoryIds, showToast } = useApp();
-  const [isHovered, setIsHovered] = useState(false);
+  const { navigateTo, toggleSaveStory, reactToStory, savedStoryIds, showToast, openCreatorProfile } = useApp();
   const [reactionBurst, setReactionBurst] = useState<string | null>(null);
 
   const isSaved = savedStoryIds.includes(story.id);
@@ -41,11 +40,14 @@ export const StoryCard: React.FC<StoryCardProps> = ({ story, layout = 'standard'
     setTimeout(() => setReactionBurst(null), 600);
   };
 
+  const handleAuthorClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    openCreatorProfile(story.authorHandle);
+  };
+
   return (
     <article
       onClick={() => navigateTo('reader', story.id)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       className="group relative flex flex-col justify-between rounded-3xl bg-surface border border-surface-border/80 overflow-hidden cursor-pointer transition-all duration-300 hover:border-surface-subtle hover:shadow-card-elevated active:scale-[0.985]"
     >
       {/* Cover Image & Overlays */}
@@ -108,7 +110,7 @@ export const StoryCard: React.FC<StoryCardProps> = ({ story, layout = 'standard'
           </div>
 
           {/* Title */}
-          <h3 className="text-lg sm:text-xl font-bold font-display text-primary group-hover:text-transparent group-hover:bg-clip-text group-hover:bg-gradient-to-r group-hover:from-white group-hover:to-accent-purple transition-all duration-200 line-clamp-2 leading-snug mb-2">
+          <h3 className="text-lg sm:text-xl font-bold font-display text-primary group-hover:text-transparent bg-clip-text bg-gradient-to-r from-white to-accent-purple transition-all duration-200 line-clamp-2 leading-snug mb-2">
             {story.title}
           </h3>
 
@@ -120,14 +122,18 @@ export const StoryCard: React.FC<StoryCardProps> = ({ story, layout = 'standard'
 
         {/* Card Footer: Author + Reactions */}
         <div className="pt-3 border-t border-surface-border/60 flex items-center justify-between gap-2">
-          {/* Author */}
-          <div className="flex items-center gap-2 min-w-0">
+          {/* Author — Clicking opens THAT author's creator profile! */}
+          <div 
+            onClick={handleAuthorClick}
+            className="flex items-center gap-2 min-w-0 hover:opacity-80 transition-opacity p-0.5 rounded-lg"
+            title={`View ${story.authorName}'s Profile`}
+          >
             <img
               src={story.authorAvatar}
               alt={story.authorName}
               className="w-6 h-6 rounded-full object-cover border border-white/10 flex-shrink-0"
             />
-            <span className="text-xs font-medium text-primary truncate">
+            <span className="text-xs font-medium text-primary hover:text-accent-lime truncate transition-colors">
               {story.authorName}
             </span>
           </div>

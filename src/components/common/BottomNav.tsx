@@ -4,19 +4,17 @@ import { ActiveTab, ViewMode } from '../../types';
 import { Home, Compass, Plus, Bookmark, User } from 'lucide-react';
 
 export const BottomNav: React.FC = () => {
-  const { currentView, navigateTo, savedStoryIds } = useApp();
+  const { currentView, navigateTo, savedStoryIds, currentUser, openOwnProfile } = useApp();
 
-  // Highlight active tab
   const getIsActive = (tab: ActiveTab) => {
     if (tab === 'home' && currentView === 'home') return true;
     if (tab === 'explore' && currentView === 'explore') return true;
     if (tab === 'create' && currentView === 'create') return true;
     if (tab === 'stash' && currentView === 'stash') return true;
-    if (tab === 'profile' && currentView === 'profile') return true;
+    if (tab === 'profile' && (currentView === 'profile' || currentView === 'creator-profile')) return true;
     return false;
   };
 
-  // Don't show bottom nav when in story reader to give 100% distraction-free reading
   if (currentView === 'reader') {
     return null;
   }
@@ -90,12 +88,20 @@ export const BottomNav: React.FC = () => {
 
         {/* 5. Profile */}
         <button
-          onClick={() => navigateTo('profile')}
+          onClick={openOwnProfile}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
             getIsActive('profile') ? 'text-accent-lime' : 'text-primary-muted hover:text-white'
           }`}
         >
-          <User className="w-5 h-5 mb-0.5" />
+          {currentUser ? (
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="w-5 h-5 rounded-full object-cover border border-accent-lime/60 mb-0.5"
+            />
+          ) : (
+            <User className="w-5 h-5 mb-0.5" />
+          )}
           <span className="text-[10px] font-mono font-medium">Profile</span>
           {getIsActive('profile') && (
             <span className="w-1 h-1 rounded-full bg-accent-lime mt-0.5" />

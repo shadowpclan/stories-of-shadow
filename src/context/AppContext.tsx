@@ -1,22 +1,32 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { Story, GenreId, ViewMode, UserProfile, Challenge, Comment } from '../types';
-import { INITIAL_STORIES, INITIAL_CHALLENGE, INITIAL_COMMENTS, INITIAL_USER } from '../data/seedData';
+import { Story, GenreId, ViewMode, UserProfile, Challenge, Comment, SubmissionPipelineStep } from '../types';
+import { INITIAL_STORIES, INITIAL_CHALLENGE, INITIAL_COMMENTS, CREATOR_PROFILES } from '../data/seedData';
 
 interface AppContextType {
   currentView: ViewMode;
   selectedStoryId: string | null;
   stories: Story[];
   challenge: Challenge;
-  user: UserProfile;
+  currentUser: UserProfile | null;
+  viewingProfile: UserProfile | null;
   comments: Comment[];
   savedStoryIds: string[];
   searchQuery: string;
   selectedGenre: GenreId | 'all';
   toast: { message: string; type?: 'success' | 'info' | 'purple' } | null;
+  isAuthModalOpen: boolean;
   
-  // Navigation
+  // Navigation & Profile viewing
   navigateTo: (view: ViewMode, storyId?: string) => void;
   goBack: () => void;
+  openCreatorProfile: (authorHandle: string) => void;
+  openOwnProfile: () => void;
+  
+  // Auth
+  setIsAuthModalOpen: (open: boolean) => void;
+  signInWithInstagram: (instagramHandle: string, name: string, bio?: string) => UserProfile;
+  signOut: () => void;
+  updateUserProfile: (data: Partial<UserProfile>) => void;
   
   // Filters
   setSearchQuery: (query: string) => void;
@@ -26,25 +36,35 @@ interface AppContextType {
   toggleSaveStory: (storyId: string) => void;
   reactToStory: (storyId: string, type: 'mindblown' | 'spooky' | 'feltThat' | 'unreal') => void;
   addComment: (storyId: string, text: string) => void;
-  createStory: (storyData: Omit<Story, 'id' | 'createdAt' | 'views' | 'saveCount' | 'reactions'>) => Story;
-  updateStoryStatus: (storyId: string, status: Story['status'], isAdapted?: boolean, adaptationStatus?: Story['adaptationStatus']) => void;
+  createStory: (storyData: Omit<Story, 'id' | 'createdAt' | 'views' | 'saveCount' | 'reactions' | 'pipelineStep'>) => Story;
+  updateStoryStatus: (
+    storyId: string, 
+    status: Story['status'], 
+    isAdapted?: boolean, 
+    adaptationStatus?: Story['adaptationStatus'],
+    pipelineStep?: SubmissionPipelineStep,
+    editorialReviewNotes?: string
+  ) => void;
   showToast: (message: string, type?: 'success' | 'info' | 'purple') => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_KEYS = {
-  STORIES: 'sos_stories_v1',
-  SAVED: 'sos_saved_v1',
-  USER: 'sos_user_v1',
-  COMMENTS: 'sos_comments_v1',
+  STORIES: 'sos_stories_v3',
+  SAVED: 'sos_saved_v3',
+  CURRENT_USER: 'sos_current_user_v3',
+  COMMENTS: 'sos_comments_v3',
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentView, setCurrentView] = useState<ViewMode>('home');
   const [previousViews, setPreviousViews] = useState<ViewMode[]>([]);
   const [selectedStoryId, setSelectedStoryId] = useState<string | null>(null);
-  
+  const [viewingProfile, setViewingProfile] = useState<UserProfile | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+
+  // Stories
   const [stories, setStories] = useState<Story[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.STORIES);
@@ -54,24 +74,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }
   });
 
+  // Current User (null if guest / not signed in!)
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEYS.CURRENT_USER);
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Saved Stash
   const [savedStoryIds, setSavedStoryIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.SAVED);
-      return saved ? JSON.parse(saved) : INITIAL_USER.savedStoryIds;
+      return saved ? JSON.parse(saved) : ['story-1', 'story-3'];
     } catch {
-      return INITIAL_USER.savedStoryIds;
+      return ['story-1', 'story-3'];
     }
   });
 
-  const [user, setUser] = useState<UserProfile>(() => {
-    try {
-      const saved = localStorage.getItem(STORAGE_KEYS.USER);
-      return saved ? JSON.parse(saved) : INITIAL_USER;
-    } catch {
-      return INITIAL_USER;
-    }
-  });
-
+  // Comments
   const [comments, setComments] = useState<Comment[]>(() => {
     try {
       const saved = localStorage.getItem(STORAGE_KEYS.COMMENTS);
@@ -97,9 +120,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   useEffect(() => {
     try {
+      if (currentUser) {
+        localStorage.setItem(STORAGE_KEYS.CURRENT_USER, JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      }
+    } catch (e) {
+      console.warn('User storage error', e);
+    }
+  }, [currentUser]);
+
+  useEffect(() => {
+    try {
       localStorage.setItem(STORAGE_KEYS.SAVED, JSON.stringify(savedStoryIds));
     } catch (e) {
-      console.warn('Storage sync error', e);
+      console.warn('Saved stories storage error', e);
     }
   }, [savedStoryIds]);
 
@@ -107,7 +142,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       localStorage.setItem(STORAGE_KEYS.COMMENTS, JSON.stringify(comments));
     } catch (e) {
-      console.warn('Storage sync error', e);
+      console.warn('Comments storage error', e);
     }
   }, [comments]);
 
@@ -123,7 +158,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setCurrentView(view);
     if (storyId) {
       setSelectedStoryId(storyId);
-      // Increment view count
       setStories((prev) =>
         prev.map((s) => (s.id === storyId ? { ...s, views: s.views + 1 } : s))
       );
@@ -140,6 +174,91 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       setCurrentView('home');
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const openCreatorProfile = (authorHandle: string) => {
+    const cleanHandle = authorHandle.startsWith('@') ? authorHandle : `@${authorHandle}`;
+    
+    if (CREATOR_PROFILES[cleanHandle]) {
+      setViewingProfile(CREATOR_PROFILES[cleanHandle]);
+    } else if (currentUser && (currentUser.handle === cleanHandle || currentUser.instagramHandle === cleanHandle)) {
+      setViewingProfile(currentUser);
+    } else {
+      const authorStory = stories.find((s) => s.authorHandle === cleanHandle);
+      const profile: UserProfile = {
+        id: `creator-${cleanHandle.replace('@', '')}`,
+        name: authorStory ? authorStory.authorName : cleanHandle.replace('@', ''),
+        handle: cleanHandle,
+        instagramHandle: cleanHandle,
+        bio: `Storyteller & worldbuilder on Stories of Shadow. Exploring midnight thought experiments.`,
+        avatar: authorStory?.authorAvatar || `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80`,
+        badges: ['Community Writer', 'Night Explorer'],
+        savedStoryIds: [],
+        submittedStoryIds: stories.filter((s) => s.authorHandle === cleanHandle).map((s) => s.id),
+        stats: {
+          storiesSubmitted: stories.filter((s) => s.authorHandle === cleanHandle).length,
+          storiesApproved: stories.filter((s) => s.authorHandle === cleanHandle && s.status !== 'rejected').length,
+          storiesAdapted: stories.filter((s) => s.authorHandle === cleanHandle && s.isAdapted).length,
+          totalReads: stories
+            .filter((s) => s.authorHandle === cleanHandle)
+            .reduce((acc, curr) => acc + curr.views, 0),
+        },
+      };
+      setViewingProfile(profile);
+    }
+
+    navigateTo('creator-profile');
+  };
+
+  const openOwnProfile = () => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+    } else {
+      navigateTo('profile');
+    }
+  };
+
+  const signInWithInstagram = (instagramHandle: string, name: string, bio?: string): UserProfile => {
+    const cleanHandle = instagramHandle.startsWith('@') ? instagramHandle : `@${instagramHandle}`;
+    const cleanName = name.trim() || cleanHandle.replace('@', '');
+    
+    const newUser: UserProfile = {
+      id: `u-${Date.now()}`,
+      name: cleanName,
+      handle: cleanHandle,
+      instagramHandle: cleanHandle,
+      bio: bio?.trim() || 'Midnight writer dropping thoughts on Stories of Shadow.',
+      avatar: `https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80`,
+      badges: ['Verified Instagram Creator', 'Early Explorer ✨'],
+      savedStoryIds: savedStoryIds,
+      submittedStoryIds: [],
+      isOwnAccount: true,
+      stats: {
+        storiesSubmitted: 0,
+        storiesApproved: 0,
+        storiesAdapted: 0,
+        totalReads: 0,
+      },
+    };
+
+    setCurrentUser(newUser);
+    setIsAuthModalOpen(false);
+    navigateTo('profile'); // Immediately take them to their new personal dashboard!
+    showToast(`Connected as ${cleanHandle}! ✦`, 'purple');
+    return newUser;
+  };
+
+  const signOut = () => {
+    setCurrentUser(null);
+    showToast('Signed out of Instagram account', 'info');
+    navigateTo('home');
+  };
+
+  const updateUserProfile = (data: Partial<UserProfile>) => {
+    if (!currentUser) return;
+    const updated = { ...currentUser, ...data };
+    setCurrentUser(updated);
+    showToast('Profile updated successfully!', 'success');
   };
 
   const toggleSaveStory = (storyId: string) => {
@@ -176,7 +295,12 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         } else {
           currentReactions[type] = currentReactions[type] + 1;
           userReactions[type] = true;
-          showToast(`Reacted with ${type === 'mindblown' ? '🔥 Mindblown' : type === 'spooky' ? '💀 Spooky' : type === 'feltThat' ? '💜 Felt That' : '🚀 Unreal'}!`, 'purple');
+          showToast(
+            `Reacted with ${
+              type === 'mindblown' ? '🔥 Mindblown' : type === 'spooky' ? '💀 Spooky' : type === 'feltThat' ? '💜 Felt That' : '🚀 Unreal'
+            }!`,
+            'purple'
+          );
         }
 
         return {
@@ -190,12 +314,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const addComment = (storyId: string, text: string) => {
     if (!text.trim()) return;
+    const authorName = currentUser?.name || 'Curious Mind';
+    const authorHandle = currentUser?.handle || '@guest_explorer';
+    const authorAvatar = currentUser?.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=100&q=80';
+
     const newComment: Comment = {
       id: `c-${Date.now()}`,
       storyId,
-      authorName: user.name,
-      authorHandle: user.handle,
-      authorAvatar: user.avatar,
+      authorName,
+      authorHandle,
+      authorAvatar,
       text: text.trim(),
       createdAt: 'Just now',
       likes: 0,
@@ -205,55 +333,81 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const createStory = (
-    storyData: Omit<Story, 'id' | 'createdAt' | 'views' | 'saveCount' | 'reactions'>
+    storyData: Omit<Story, 'id' | 'createdAt' | 'views' | 'saveCount' | 'reactions' | 'pipelineStep'>
   ): Story => {
     const newId = `story-${Date.now()}`;
     const newStory: Story = {
       ...storyData,
       id: newId,
       createdAt: 'Just now',
+      submittedAt: 'Today',
       views: 1,
       saveCount: 0,
+      pipelineStep: 1, // Step 1: Submitted
+      editorialReviewNotes: 'Submission received. Assigned to editorial queue for initial review.',
+      estimatedReviewHours: 24,
       reactions: {
         mindblown: 1,
         spooky: 0,
         feltThat: 0,
         unreal: 0,
       },
-      status: 'pending', // goes to editorial queue
+      status: 'pending',
     };
 
     setStories((prev) => [newStory, ...prev]);
-    setUser((prev) => ({
-      ...prev,
-      submittedStoryIds: [newId, ...prev.submittedStoryIds],
-      stats: {
-        ...prev.stats,
-        storiesSubmitted: prev.stats.storiesSubmitted + 1,
-      },
-    }));
+    
+    // Update logged in user submissions if logged in
+    if (currentUser) {
+      setCurrentUser((prev) => {
+        if (!prev) return null;
+        return {
+          ...prev,
+          submittedStoryIds: [newId, ...prev.submittedStoryIds],
+          stats: {
+            ...prev.stats,
+            storiesSubmitted: prev.stats.storiesSubmitted + 1,
+            totalReads: prev.stats.totalReads + 1,
+          },
+        };
+      });
+    }
 
     return newStory;
   };
 
   const updateStoryStatus = (
-    storyId: string,
-    status: Story['status'],
-    isAdapted?: boolean,
-    adaptationStatus?: Story['adaptationStatus']
+    storyId: string, 
+    status: Story['status'], 
+    isAdapted?: boolean, 
+    adaptationStatus?: Story['adaptationStatus'],
+    pipelineStep?: SubmissionPipelineStep,
+    editorialReviewNotes?: string
   ) => {
     setStories((prev) =>
       prev.map((s) => {
         if (s.id !== storyId) return s;
+        
+        let determinedStep: SubmissionPipelineStep = pipelineStep || s.pipelineStep;
+        if (!pipelineStep) {
+          if (status === 'pending') determinedStep = 2; // Under review
+          else if (status === 'approved' && !isAdapted) determinedStep = 3; // Live
+          else if (isAdapted && adaptationStatus !== 'released') determinedStep = 4; // In 3D production
+          else if (isAdapted && adaptationStatus === 'released') determinedStep = 5; // Released
+        }
+
         return {
           ...s,
           status,
+          pipelineStep: determinedStep,
           ...(isAdapted !== undefined ? { isAdapted } : {}),
           ...(adaptationStatus ? { adaptationStatus } : {}),
+          ...(editorialReviewNotes ? { editorialReviewNotes } : {}),
+          ...(status === 'approved' ? { approvedAt: 'Today' } : {}),
         };
       })
     );
-    showToast(`Story status updated to ${status}!`, 'info');
+    showToast(`Status updated to ${status}!`, 'info');
   };
 
   return (
@@ -263,14 +417,22 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         selectedStoryId,
         stories,
         challenge,
-        user,
+        currentUser,
+        viewingProfile,
         comments,
         savedStoryIds,
         searchQuery,
         selectedGenre,
         toast,
+        isAuthModalOpen,
         navigateTo,
         goBack,
+        openCreatorProfile,
+        openOwnProfile,
+        setIsAuthModalOpen,
+        signInWithInstagram,
+        signOut,
+        updateUserProfile,
         setSearchQuery,
         setSelectedGenre,
         toggleSaveStory,

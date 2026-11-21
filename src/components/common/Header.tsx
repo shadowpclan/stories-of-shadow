@@ -1,9 +1,9 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
-import { Sparkles, PenTool, Search, Bookmark, Shield, User } from 'lucide-react';
+import { Sparkles, PenTool, Search, Bookmark, Shield, User, Instagram } from 'lucide-react';
 
 export const Header: React.FC = () => {
-  const { currentView, navigateTo, savedStoryIds, user } = useApp();
+  const { currentView, navigateTo, savedStoryIds, currentUser, openOwnProfile, setIsAuthModalOpen } = useApp();
 
   return (
     <header className="sticky top-0 z-30 bg-void/80 backdrop-blur-xl border-b border-surface-border px-4 xs:px-6 py-3.5 transition-all">
@@ -99,21 +99,31 @@ export const Header: React.FC = () => {
             <span>Drop Story ↗</span>
           </button>
 
-          {/* User Profile Mini Trigger */}
-          <button
-            onClick={() => navigateTo('profile')}
-            aria-label="View user profile"
-            className="flex items-center gap-2 p-1 pl-1.5 pr-2 rounded-full bg-surface hover:bg-surface-elevated border border-surface-border transition-all active:scale-95"
-          >
-            <img
-              src={user.avatar}
-              alt={user.name}
-              className="w-6 h-6 rounded-full object-cover border border-accent-purple/40"
-            />
-            <span className="text-xs font-mono text-primary font-medium hidden sm:inline">
-              {user.name.split(' ')[0]}
-            </span>
-          </button>
+          {/* User Profile / Instagram Sign In Button */}
+          {currentUser ? (
+            <button
+              onClick={openOwnProfile}
+              aria-label="View user profile"
+              className="flex items-center gap-2 p-1 pl-1.5 pr-2.5 rounded-full bg-surface hover:bg-surface-elevated border border-surface-border transition-all active:scale-95"
+            >
+              <img
+                src={currentUser.avatar}
+                alt={currentUser.name}
+                className="w-6 h-6 rounded-full object-cover border border-accent-purple/40"
+              />
+              <span className="text-xs font-mono text-primary font-medium hidden sm:inline">
+                {currentUser.handle}
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={() => setIsAuthModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gradient-to-r from-accent-purple/20 to-accent-pink/20 hover:from-accent-purple/30 hover:to-accent-pink/30 border border-accent-pink/40 text-xs font-mono font-bold text-accent-pink transition-all active:scale-95"
+            >
+              <Instagram className="w-3.5 h-3.5" />
+              <span>Connect IG</span>
+            </button>
+          )}
         </div>
       </div>
     </header>

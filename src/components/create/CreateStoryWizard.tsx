@@ -4,16 +4,16 @@ import { GENRES } from '../../data/genres';
 import { GenreId } from '../../types';
 import { 
   ArrowLeft, ArrowRight, Check, Sparkles, PenTool, 
-  Lightbulb, ShieldCheck, Heart, Send, CheckCircle2, Copy 
+  Lightbulb, ShieldCheck, Heart, Send, CheckCircle2, Copy, Instagram 
 } from 'lucide-react';
 
 export const CreateStoryWizard: React.FC = () => {
-  const { createStory, user, navigateTo, showToast } = useApp();
+  const { createStory, currentUser, signInWithInstagram, navigateTo, showToast } = useApp();
 
   const [currentStep, setCurrentStep] = useState<number>(1);
   const [submittedStoryId, setSubmittedStoryId] = useState<string | null>(null);
 
-  // Form State with localStorage draft persistence
+  // Form State
   const [genre, setGenre] = useState<GenreId>(() => {
     return (localStorage.getItem('sos_draft_genre') as GenreId) || 'what-if';
   });
@@ -26,14 +26,28 @@ export const CreateStoryWizard: React.FC = () => {
   const [content, setContent] = useState<string>(() => {
     return localStorage.getItem('sos_draft_content') || '';
   });
+  
+  // Use current user's real handle if available
   const [creatorName, setCreatorName] = useState<string>(() => {
-    return localStorage.getItem('sos_draft_author') || user.name;
+    if (currentUser) return currentUser.name;
+    const saved = localStorage.getItem('sos_draft_author');
+    return (saved && saved !== 'Kai Shadow') ? saved : '';
   });
   const [instagramHandle, setInstagramHandle] = useState<string>(() => {
-    return localStorage.getItem('sos_draft_ig') || user.instagramHandle || '';
+    if (currentUser) return currentUser.instagramHandle;
+    const saved = localStorage.getItem('sos_draft_ig');
+    return (saved && !saved.includes('kai')) ? saved : '';
   });
   const [allowAdaptation, setAllowAdaptation] = useState<boolean>(true);
   const [agreedToTerms, setAgreedToTerms] = useState<boolean>(false);
+
+  // Keep synced with current user
+  useEffect(() => {
+    if (currentUser) {
+      setCreatorName(currentUser.name);
+      setInstagramHandle(currentUser.instagramHandle);
+    }
+  }, [currentUser]);
 
   // Save drafts automatically
   useEffect(() => {
@@ -42,16 +56,18 @@ export const CreateStoryWizard: React.FC = () => {
       localStorage.setItem('sos_draft_title', title);
       localStorage.setItem('sos_draft_hook', hook);
       localStorage.setItem('sos_draft_content', content);
-      localStorage.setItem('sos_draft_author', creatorName);
-      localStorage.setItem('sos_draft_ig', instagramHandle);
+      if (creatorName && creatorName !== 'Kai Shadow') {
+        localStorage.setItem('sos_draft_author', creatorName);
+      }
+      if (instagramHandle && !instagramHandle.includes('kai')) {
+        localStorage.setItem('sos_draft_ig', instagramHandle);
+      }
     }
   }, [genre, title, hook, content, creatorName, instagramHandle, submittedStoryId]);
 
-  // Word count & reading time
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 180));
 
-  // "Need a spark" creative prompts
   const SPARKS = [
     "You realize the static on your TV isn't white noise—it's whispering your childhood address.",
     "A world where human lifespan is displayed as a battery percentage on your wrist, and yours dropped 40% after touching a stranger.",
@@ -75,13 +91,22 @@ export const CreateStoryWizard: React.FC = () => {
       return;
     }
 
+    const cleanHandle = instagramHandle.trim() 
+      ? (instagramHandle.startsWith('@') ? instagramHandle.trim() : `@${instagramHandle.trim()}`)
+      : '@anonymous_mind';
+
+    // If not signed in yet, connect them automatically with their Instagram handle!
+    if (!currentUser && instagramHandle.trim()) {
+      signInWithInstagram(cleanHandle, creatorName.trim() || cleanHandle.replace('@', ''));
+    }
+
     const created = createStory({
       title: title.trim() || 'Untitled Phenomenon',
       hook: hook.trim() || 'A strange occurrence that defies explanation.',
       content: content.trim(),
-      authorName: creatorName.trim() || 'Anonymous Mind',
-      authorHandle: instagramHandle.trim() ? `@${instagramHandle.replace('@', '')}` : '@anonymous',
-      authorAvatar: user.avatar,
+      authorName: creatorName.trim() || cleanHandle.replace('@', ''),
+      authorHandle: cleanHandle,
+      authorAvatar: currentUser?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       genre,
       coverImage: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80',
       coverGradient: 'from-accent-purple/50 via-surface to-void',
@@ -93,6 +118,8 @@ export const CreateStoryWizard: React.FC = () => {
     localStorage.removeItem('sos_draft_title');
     localStorage.removeItem('sos_draft_hook');
     localStorage.removeItem('sos_draft_content');
+    localStorage.removeItem('sos_draft_author');
+    localStorage.removeItem('sos_draft_ig');
 
     setSubmittedStoryId(created.id);
   };
@@ -111,7 +138,7 @@ export const CreateStoryWizard: React.FC = () => {
           </h2>
 
           <p className="text-sm text-primary-muted font-mono leading-relaxed mb-6">
-            Your story has entered the review queue. You'll be able to track what happens next.
+            Your story has entered the review queue. You can track real-time editorial status and reader analytics below.
           </p>
 
           {/* Submission Tracking Box */}
@@ -122,20 +149,20 @@ export const CreateStoryWizard: React.FC = () => {
             </div>
             <div className="flex justify-between">
               <span className="text-primary-muted">Status:</span>
-              <span className="text-amber-400 font-bold">● Under Editorial Review</span>
+              <span className="text-amber-400 font-bold">● Stage 1: Received & Queued</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-primary-muted">Title:</span>
-              <span className="text-primary font-medium truncate max-w-[180px]">{title}</span>
+              <span className="text-primary-muted">Creator Handle:</span>
+              <span className="text-accent-pink font-bold">{instagramHandle ? `@${instagramHandle.replace('@', '')}` : 'Anonymous'}</span>
             </div>
           </div>
 
           <div className="space-y-3">
             <button
               onClick={() => navigateTo('profile')}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-accent-purple to-accent-pink text-white font-display font-bold text-sm tracking-wide shadow-glow-purple active:scale-95 transition-all"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-accent-purple via-accent-pink to-accent-lime text-white font-display font-bold text-sm tracking-wide shadow-glow-purple active:scale-95 transition-all"
             >
-              Track in Your Profile Dashboard
+              Open Live Tracking Dashboard ➔
             </button>
 
             <button
@@ -157,7 +184,7 @@ export const CreateStoryWizard: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen px-4 xs:px-6 pt-6 pb-36 max-w-2xl mx-auto">
+    <div className="min-h-screen px-4 xs:px-6 pt-6 pb-36 max-w-2xl mx-auto w-full overflow-x-hidden">
       {/* Top Navigation & Step Indicator */}
       <div className="mb-6">
         <div className="flex items-center justify-between mb-4">
@@ -370,8 +397,28 @@ export const CreateStoryWizard: React.FC = () => {
       {currentStep === 4 && (
         <section className="space-y-5">
           <h2 className="text-lg font-bold font-display text-primary">
-            Step 4: Choose creator identity and privacy settings
+            Step 4: Connect your creator identity
           </h2>
+
+          <div>
+            <label className="block text-xs font-mono uppercase tracking-wider text-primary-muted mb-2">
+              Instagram Handle * (Where readers can follow you)
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-primary-muted font-mono text-sm">@</span>
+              <input
+                type="text"
+                required
+                value={instagramHandle.replace('@', '')}
+                onChange={(e) => setInstagramHandle(`@${e.target.value}`)}
+                placeholder="your_instagram"
+                className="w-full pl-9 pr-4 py-3.5 rounded-2xl bg-surface border border-surface-border text-primary placeholder-primary-faint text-sm font-mono focus:outline-none focus:border-accent-purple"
+              />
+            </div>
+            <p className="text-[11px] font-mono text-primary-faint mt-1">
+              Used to credit you on our Reels & YouTube when your story is featured.
+            </p>
+          </div>
 
           <div>
             <label className="block text-xs font-mono uppercase tracking-wider text-primary-muted mb-2">
@@ -381,20 +428,7 @@ export const CreateStoryWizard: React.FC = () => {
               type="text"
               value={creatorName}
               onChange={(e) => setCreatorName(e.target.value)}
-              placeholder="How should you be credited? (e.g. Kai Shadow, @midnight_ghost)"
-              className="w-full px-4 py-3.5 rounded-2xl bg-surface border border-surface-border text-primary placeholder-primary-faint text-sm focus:outline-none focus:border-accent-purple"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-mono uppercase tracking-wider text-primary-muted mb-2">
-              Instagram Handle (For tags if adapted or featured)
-            </label>
-            <input
-              type="text"
-              value={instagramHandle}
-              onChange={(e) => setInstagramHandle(e.target.value)}
-              placeholder="@yourhandle"
+              placeholder="e.g. Maya Lin, Alex Rivera"
               className="w-full px-4 py-3.5 rounded-2xl bg-surface border border-surface-border text-primary placeholder-primary-faint text-sm focus:outline-none focus:border-accent-purple"
             />
           </div>
@@ -409,13 +443,13 @@ export const CreateStoryWizard: React.FC = () => {
             />
             <label htmlFor="adaptation" className="text-xs text-primary-muted leading-relaxed cursor-pointer">
               <strong className="text-primary block mb-0.5">Allow Animation Adaptation Consideration</strong>
-              If our studio loves this story, we may consider adapting it into a 3D animated short with full creator credit and links to your social profiles.
+              If our studio selects this story, we will adapt it into a cinematic 3D animation short with full tags to your Instagram handle.
             </label>
           </div>
 
           <div className="pt-4">
             <button
-              disabled={!creatorName.trim()}
+              disabled={!instagramHandle.trim() || !creatorName.trim()}
               onClick={() => setCurrentStep(5)}
               className="w-full py-4 rounded-2xl bg-gradient-to-r from-accent-purple to-accent-pink text-white font-display font-bold text-base shadow-glow-purple disabled:opacity-40 active:scale-95 transition-all flex items-center justify-center gap-2"
             >
@@ -447,7 +481,7 @@ export const CreateStoryWizard: React.FC = () => {
             </p>
 
             <div className="pt-2 text-xs font-mono text-primary-faint">
-              Credit: <span className="text-primary font-bold">{creatorName}</span> {instagramHandle && `(${instagramHandle})`}
+              Credit: <span className="text-primary font-bold">{creatorName}</span> ({instagramHandle})
             </div>
           </div>
 

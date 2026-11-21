@@ -3,7 +3,7 @@ import { useApp } from '../../context/AppContext';
 import { GENRES } from '../../data/genres';
 import { 
   ArrowLeft, Bookmark, Share2, Clock, Sparkles, Film, 
-  Flame, Skull, Heart, Rocket, Send, Type, Eye, Check
+  Flame, Skull, Heart, Rocket, Send, Type, Eye, Check, ExternalLink
 } from 'lucide-react';
 
 export const StoryReader: React.FC = () => {
@@ -17,7 +17,8 @@ export const StoryReader: React.FC = () => {
     reactToStory, 
     comments, 
     addComment,
-    showToast 
+    showToast,
+    openCreatorProfile 
   } = useApp();
 
   const [fontSize, setFontSize] = useState<'normal' | 'large' | 'huge'>('normal');
@@ -30,15 +31,12 @@ export const StoryReader: React.FC = () => {
   const isSaved = story ? savedStoryIds.includes(story.id) : false;
   const genreMeta = story ? (GENRES.find((g) => g.id === story.genre) || GENRES[0]) : GENRES[0];
 
-  // Story comments
   const storyComments = comments.filter((c) => c.storyId === story?.id);
 
-  // Other related stories
   const relatedStories = stories
     .filter((s) => s.id !== story?.id && (s.genre === story?.genre || s.status === 'featured'))
     .slice(0, 2);
 
-  // Scroll Progress Calculation
   useEffect(() => {
     const handleScroll = () => {
       const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
@@ -192,8 +190,11 @@ export const StoryReader: React.FC = () => {
           "{story.hook}"
         </p>
 
-        {/* Author Bio Card */}
-        <div className="flex items-center justify-between mb-8 p-3.5 rounded-2xl bg-surface border border-surface-border">
+        {/* Author Bio Card — Clicking opens THAT author's creator profile! */}
+        <div 
+          onClick={() => openCreatorProfile(story.authorHandle)}
+          className="flex items-center justify-between mb-8 p-3.5 rounded-2xl bg-surface border border-surface-border cursor-pointer hover:border-accent-purple transition-all"
+        >
           <div className="flex items-center gap-3">
             <img
               src={story.authorAvatar}
@@ -201,17 +202,18 @@ export const StoryReader: React.FC = () => {
               className="w-10 h-10 rounded-full object-cover border border-accent-purple/40"
             />
             <div>
-              <p className="text-sm font-bold text-primary">{story.authorName}</p>
+              <p className="text-sm font-bold text-primary hover:text-accent-lime transition-colors">
+                {story.authorName}
+              </p>
               <p className="text-xs font-mono text-primary-muted">{story.authorHandle}</p>
             </div>
           </div>
           <button
             type="button"
-            aria-label="View author profile"
-            onClick={() => navigateTo('profile')}
-            className="text-xs font-mono text-accent-lime hover:underline font-semibold"
+            className="text-xs font-mono text-accent-lime hover:underline font-semibold flex items-center gap-1"
           >
-            View Profile →
+            <span>View Creator Profile</span>
+            <ExternalLink className="w-3 h-3" />
           </button>
         </div>
 
@@ -388,9 +390,12 @@ export const StoryReader: React.FC = () => {
             {storyComments.map((c) => (
               <div key={c.id} className="p-3.5 rounded-2xl bg-surface/70 border border-surface-border">
                 <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-2">
+                  <div 
+                    onClick={() => openCreatorProfile(c.authorHandle)}
+                    className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity"
+                  >
                     <img src={c.authorAvatar} alt={c.authorName} className="w-5 h-5 rounded-full object-cover" />
-                    <span className="text-xs font-bold text-primary">{c.authorName}</span>
+                    <span className="text-xs font-bold text-primary hover:text-accent-lime transition-colors">{c.authorName}</span>
                     <span className="text-[11px] font-mono text-primary-faint">{c.authorHandle}</span>
                   </div>
                   <span className="text-[10px] font-mono text-primary-muted">{c.createdAt}</span>
